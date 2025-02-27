@@ -7,8 +7,6 @@ import os
 from flask import Flask, request, send_file, render_template_string
 import tempfile
 
-os.environ["NUMBA_DISABLE_JIT"] = "1"  # Disable numba JIT
-
 app = Flask(__name__)
 
 def load_audio(file_path):
@@ -24,8 +22,8 @@ def detect_tuning(y, sr):
     return ["E", "A", "D", "G", "B", "E"]
 
 def analyze_notes(y, sr):
-    chroma = librosa.feature.chroma_stft(y=y, sr=sr)
-    onsets = librosa.onset.onset_detect(y=y, sr=sr)
+    chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=1024)  # Reduce memory use
+    onsets = librosa.onset.onset_detect(y=y, sr=sr, hop_length=1024)
     notes = []
     for onset in onsets:
         pitch = np.argmax(chroma[:, onset])
