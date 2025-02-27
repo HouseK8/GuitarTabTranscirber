@@ -1,0 +1,6 @@
+flask
+librosa
+pydub
+numpy
+music21
+fpdf
