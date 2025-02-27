@@ -21,13 +21,20 @@ def load_audio(file_path):
 def detect_tuning(y, sr):
     return ["E", "A", "D", "G", "B", "E"]
 
-def analyze_notes(y, sr):
-    chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=1024)  # Reduce memory use
-    onsets = librosa.onset.onset_detect(y=y, sr=sr, hop_length=1024)
+def analyze_notes(y, sr, chunk_length=10.0):
+    # Process in chunks (e.g., 10 seconds)
+    chunk_samples = int(chunk_length * sr)
     notes = []
-    for onset in onsets:
-        pitch = np.argmax(chroma[:, onset])
-        notes.append((onset, pitch))
+    for start in range(0, len(y), chunk_samples):
+        end = min(start + chunk_samples, len(y))
+        y_chunk = y[start:end]
+        chroma = librosa.feature.chroma_stft(y=y_chunk, sr=sr, hop_length=1024)
+        onsets = librosa.onset.onset_detect(y=y_chunk, sr=sr, hop_length=1024)
+        for onset in onsets:
+            # Adjust onset to absolute position in full audio
+            absolute_onset = (start // 1024) + onset  # Scale by hop_length
+            pitch = np.argmax(chroma[:, onset])
+            notes.append((absolute_onset, pitch))
     return notes
 
 def map_pitch_to_fret(pitch, tuning):
@@ -37,10 +44,11 @@ def map_pitch_to_fret(pitch, tuning):
     return fret, string
 
 def notes_to_tab(notes, tuning):
-    tab = {s: ["-" for _ in range(20)] for s in tuning}
+    # Extend tab length for full songs (e.g., 200 positions)
+    tab = {s: ["-" for _ in range(200)] for s in tuning}
     for i, (onset, pitch) in enumerate(notes):
         fret, string = map_pitch_to_fret(pitch, tuning)
-        if i < 20:
+        if i < 200:  # Adjustable limit
             tab[string][i] = str(fret) if fret < 10 else str(fret)[-1]
     tab_str = "\n".join(f"{s}|{'-'.join(tab[s])}|" for s in tuning[::-1])
     return tab_str
@@ -58,7 +66,7 @@ def export_tab(tab, filename):
 def transcribe_to_tab(file_path, output_name):
     y, sr = load_audio(file_path)
     tuning = detect_tuning(y, sr)
-    notes = analyze_notes(y, sr)
+    notes = analyze_notes(y, sr, chunk_length=10.0)  # 10-second chunks
     tab = notes_to_tab(notes, tuning)
     export_tab(tab, output_name)
     os.remove(file_path)
