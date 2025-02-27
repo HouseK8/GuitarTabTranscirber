@@ -21,16 +21,16 @@ def load_audio(file_path):
 def detect_tuning(y, sr):
     return ["E", "A", "D", "G", "B", "E"]
 
-def analyze_notes(y, sr, chunk_length=5.0):  # Smaller 5-second chunks
+def analyze_notes(y, sr, chunk_length=2.0):  # 2-second chunks
     chunk_samples = int(chunk_length * sr)
     notes = []
     for start in range(0, len(y), chunk_samples):
         end = min(start + chunk_samples, len(y))
         y_chunk = y[start:end]
-        chroma = librosa.feature.chroma_stft(y=y_chunk, sr=sr, hop_length=2048)  # Bigger hop_length
-        onsets = librosa.onset.onset_detect(y=y_chunk, sr=sr, hop_length=2048)
+        chroma = librosa.feature.chroma_stft(y=y_chunk, sr=sr, hop_length=4096)  # Bigger hop_length
+        onsets = librosa.onset.onset_detect(y=y_chunk, sr=sr, hop_length=4096)
         for onset in onsets:
-            absolute_onset = (start // 2048) + onset
+            absolute_onset = (start // 4096) + onset  # Adjust for hop_length
             pitch = np.argmax(chroma[:, onset])
             notes.append((absolute_onset, pitch))
     return notes
@@ -42,10 +42,10 @@ def map_pitch_to_fret(pitch, tuning):
     return fret, string
 
 def notes_to_tab(notes, tuning):
-    tab = {s: ["-" for _ in range(200)] for s in tuning}
+    tab = {s: ["-" for _ in range(200)] for s in tuning}  # 200 positions for full songs
     for i, (onset, pitch) in enumerate(notes):
         fret, string = map_pitch_to_fret(pitch, tuning)
-        if i < 200:
+        if i < 200:  # Adjustable limit
             tab[string][i] = str(fret) if fret < 10 else str(fret)[-1]
     tab_str = "\n".join(f"{s}|{'-'.join(tab[s])}|" for s in tuning[::-1])
     return tab_str
@@ -63,7 +63,7 @@ def export_tab(tab, filename):
 def transcribe_to_tab(file_path, output_name):
     y, sr = load_audio(file_path)
     tuning = detect_tuning(y, sr)
-    notes = analyze_notes(y, sr, chunk_length=5.0)
+    notes = analyze_notes(y, sr, chunk_length=2.0)
     tab = notes_to_tab(notes, tuning)
     export_tab(tab, output_name)
     os.remove(file_path)
