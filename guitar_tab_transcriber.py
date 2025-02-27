@@ -5,6 +5,9 @@ from fpdf import FPDF
 from pydub import AudioSegment
 import os
 from flask import Flask, request, send_file, render_template_string
+import tempfile
+
+os.environ["NUMBA_DISABLE_JIT"] = "1"  # Disable numba JIT
 
 app = Flask(__name__)
 
@@ -71,17 +74,21 @@ def index():
         if file.filename == "":
             return "No file selected", 400
         if file and file.filename.lower().endswith((".mp3", ".wav")):
-            input_file = file.filename
-            file.save(input_file)
-            output_name = os.path.splitext(input_file)[0]
-            transcribe_to_tab(input_file, output_name)
-            txt_path = f"{output_name}.txt"
-            pdf_path = f"{output_name}.pdf"
-            return f"""
-            <p>Processing complete! Download your files:</p>
-            <a href="/download/{output_name}.txt">Download {output_name}.txt</a><br>
-            <a href="/download/{output_name}.pdf">Download {output_name}.pdf</a>
-            """
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
+                input_file = temp_file.name
+                file.save(input_file)
+            output_name = os.path.splitext(file.filename)[0]
+            try:
+                transcribe_to_tab(input_file, output_name)
+                txt_path = f"{output_name}.txt"
+                pdf_path = f"{output_name}.pdf"
+                return f"""
+                <p>Processing complete! Download your files:</p>
+                <a href="/download/{output_name}.txt">Download {output_name}.txt</a><br>
+                <a href="/download/{output_name}.pdf">Download {output_name}.pdf</a>
+                """
+            except Exception as e:
+                return f"Error processing file: {str(e)}", 500
     return render_template_string("""
     <!DOCTYPE html>
     <html>
